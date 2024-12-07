@@ -1,13 +1,21 @@
+use rayon::prelude::*;
 use std::fs::File;
 use std::io::Read;
+use std::time::Instant;
 
 fn main() {
     let data = read_data();
-    part_1(&data);
-    part_2(&data);
+    let sum_1 = part_1(&data);
+
+    let start = Instant::now();
+    let sum_2 = part_2(&data);
+    let duration = start.elapsed();
+
+    println!("Part 1: {:?}", sum_1);
+    println!("Part 2: {:?}, {:?}", sum_2, duration);
 }
 
-fn part_1(data: &Vec<(i64, Vec<i64>)>) {
+fn part_1(data: &Vec<(i64, Vec<i64>)>) -> i64 {
     let mut sum = 0;
 
     for (res, numbers) in data {
@@ -20,23 +28,26 @@ fn part_1(data: &Vec<(i64, Vec<i64>)>) {
         }
     }
 
-    println!("Part 1: {:?}", sum);
+    sum
 }
 
-fn part_2(data: &Vec<(i64, Vec<i64>)>) {
-    let mut sum = 0;
+fn part_2(data: &Vec<(i64, Vec<i64>)>) -> i64 {
+    let sum: i64 = data
+        .par_iter()
+        .map(|(res, numbers)| {
+            let acc = numbers[0];
+            let remaining = &numbers[1..];
+            let tree = reduce_part_2(acc, remaining);
 
-    for (res, numbers) in data {
-        let acc = numbers[0];
-        let remaining = numbers[1..].to_vec();
-        let tree = reduce_part_2(acc, &remaining);
+            if let Some(leaf) = tree.find_eq(*res) {
+                leaf
+            } else {
+                0
+            }
+        })
+        .sum();
 
-        if let Some(leaf) = tree.find_eq(*res) {
-            sum += leaf;
-        }
-    }
-
-    println!("Part 2: {:?}", sum);
+    sum
 }
 
 struct Tree {
@@ -117,8 +128,8 @@ impl Tree2 {
     }
 }
 
-fn reduce_part_2(acc: i64, vec: &Vec<i64>) -> Tree2 {
-    if vec.len() == 0 {
+fn reduce_part_2(acc: i64, vec: &[i64]) -> Tree2 {
+    if vec.is_empty() {
         return Tree2 {
             acc,
             mul: None,
@@ -127,7 +138,7 @@ fn reduce_part_2(acc: i64, vec: &Vec<i64>) -> Tree2 {
         };
     }
     let b = vec[0];
-    let remaining = vec[1..].to_vec();
+    let remaining = &vec[1..];
 
     let plus_acc = apply_op("+".to_string(), acc, b);
     let mul_acc = apply_op("*".to_string(), acc, b);
@@ -149,8 +160,8 @@ fn reduce_part_2(acc: i64, vec: &Vec<i64>) -> Tree2 {
 }
 
 // Returns the result and the sequence of operations
-fn reduce(acc: i64, vec: &Vec<i64>) -> Tree {
-    if vec.len() == 0 {
+fn reduce(acc: i64, vec: &[i64]) -> Tree {
+    if vec.is_empty() {
         return Tree {
             acc,
             mul: None,
@@ -158,13 +169,13 @@ fn reduce(acc: i64, vec: &Vec<i64>) -> Tree {
         };
     }
     let b = vec[0];
-    let remaining = vec[1..].to_vec();
+    let remaining = &vec[1..];
 
     let plus_acc = apply_op("+".to_string(), acc, b);
     let mul_acc = apply_op("*".to_string(), acc, b);
 
-    let mul_tree = reduce(mul_acc, &remaining);
-    let plus_tree = reduce(plus_acc, &remaining);
+    let mul_tree = reduce(mul_acc, remaining);
+    let plus_tree = reduce(plus_acc, remaining);
 
     let tree = Tree {
         acc,
